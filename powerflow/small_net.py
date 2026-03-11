@@ -1,6 +1,7 @@
 import pypsa
+import numpy as np
 
-def create_small_net(ngenerators=2, nloads=2, vnom=100, r=0.01, x=0.05):
+def create_small_net(ngenerators=2, nloads=2, vnom=100, r=0.01, x=0.05, p_mu=100, connectivity=None):
     n = pypsa.Network()
     # must set a "snapshot" for pypsa
     # we could set many snapshots to solve time series power flows
@@ -10,66 +11,35 @@ def create_small_net(ngenerators=2, nloads=2, vnom=100, r=0.01, x=0.05):
     nbuses = ngenerators + nloads + 1
     for i in range(nbuses):
         n.add("Bus", f"Bus{i}", v_nom=vnom)
+    
+    if connectivity is None:
+    # if no connectivity is provided, create a fully connected network
+        for i in range(nbuses):
+            for j in range(i+1, nbuses):
+                if i != j:
+                    n.add("Line", f"L{i}{j}", bus0=f"Bus{i}", bus1=f"Bus{j}", r=r, x=x, s_nom=p_mu)
+    else:
+        for i in range(nbuses):
+            for j in range(i+1, nbuses):
+                if connectivity[i][j]:
+                    n.add("Line", f"L{i}{j}", bus0=f"Bus{i}", bus1=f"Bus{j}", r=r, x=x, s_nom=p_mu)
 
-    # lines
-    lines = [
-        ("Bus0","Bus1"),
-        ("Bus1","Bus2"),
-        ("Bus2","Bus3"),
-        ("Bus3","Bus4"),
-        ("Bus4","Bus0"),
-        ("Bus1","Bus3")
-    ]
+    busidx = 0
+    # add slack bus - V, theta fixed
+    n.add("Generator", "SlackGen", bus=f"Bus{busidx}", p_set=0, control="Slack", vm_pu=1.0)
+    busidx += 1
 
-    for i,(b0,b1) in enumerate(lines):
-        n.add(
-            "Line",
-            f"L{i}",
-            bus0=b0,
-            bus1=b1,
-            r=r,      # resistance
-            x=x,      # reactance
-            s_nom=100
-        )
-
-    # -------------------------
-    # GENERATORS
-    # -------------------------
-
-    # slack bus generator
-    n.add(
-        "Generator",
-        "SlackGen",
-        bus="Bus0",
-        p_set=0,
-        control="Slack",
-        vm_pu=1.0
-    )
-
-    # PV generators
-    n.add(
-        "Generator",
-        "Gen1",
-        bus="Bus1",
-        p_set=80,
-        control="PV",
-        vm_pu=1.02
-    )
-
-    n.add(
-        "Generator",
-        "Gen2",
-        bus="Bus2",
-        p_set=60,
-        control="PV",
-        vm_pu=1.01
-    )
-
-    # -------------------------
-    # LOADS
-    # -------------------------
-
-    n.add("Load","Load1",bus="Bus3",p_set=90,q_set=30)
-    n.add("Load","Load2",bus="Bus4",p_set=40,q_set=15)
+    # add generators - P, V fixed
+    p_gen = p_mu * np.random.normal(size=ngenerators)
+    for g in range(ngenerators):
+        n.add("Generator", f"Gen{g}", bus=f"Bus{busidx}", p_set=p_gen[g], control="PV", vm_pu=1.0)
+        busidx += 1
+    
+    # add loads - P, Q fixed
+    p_load = p_mu * np.random.normal(size=nloads)
+    q_load = p_mu * np.random.normal(size=nloads)
+    for l in range(nloads):
+        n.add("Load", f"Load{l}", bus=f"Bus{busidx}", p_set=p_load[l], q_set=q_load[l])
+        busidx += 1
 
     return n
