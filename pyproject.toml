@@ -1,0 +1,14 @@
+[project]
+name = "gridinstructor"
+version = "0.1.0"
+description = "power systems teaching tools"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+    "networkx",
+    "numpy",
+    "matplotlib",
+    "pypsa",
+    "jupyterlab"
+]
